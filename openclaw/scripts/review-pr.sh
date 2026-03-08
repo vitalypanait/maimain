@@ -16,15 +16,21 @@ REGISTRY="$ROOT_DIR/registry/agents.json"
 DIFF_CONTENT="$(gh pr diff "$PR_NUMBER")"
 ACCEPTANCE_CRITERIA="$(jq -r --arg task "$TASK_ID" '.agents[$task].acceptance_criteria // "(не указаны)"' "$REGISTRY")"
 
-CODEX_REVIEW="OPENAI_API_KEY не задан, ревью Codex пропущено."
-if [[ -n "${OPENAI_API_KEY:-}" ]]; then
-  SYSTEM_PROMPT="Ты дотошный ревьюер кода. Фокус: граничные случаи, отсутствующая обработка ошибок, состояния гонки, уязвимости безопасности. Будь лаконичен. Блокирующие проблемы помечай префиксом CRITICAL:"
-  USER_PROMPT="Проверь этот PR.\n\nКритерии приёмки:\n${ACCEPTANCE_CRITERIA}\n\nDiff:\n${DIFF_CONTENT}"
+SYSTEM_PROMPT="Ты дотошный ревьюер кода. Фокус: граничные случаи, отсутствующая обработка ошибок, состояния гонки, уязвимости безопасности. Будь лаконичен. Блокирующие проблемы помечай префиксом CRITICAL:"
+USER_PROMPT="Проверь этот PR.\n\nКритерии приёмки:\n${ACCEPTANCE_CRITERIA}\n\nDiff:\n${DIFF_CONTENT}"
+
+CODEX_REVIEW=""
+if command -v codex >/dev/null 2>&1; then
+  CODEX_REVIEW="$(codex exec --full-auto --model openai-codex/gpt-5.3-codex "${SYSTEM_PROMPT}\n\n${USER_PROMPT}" 2>/dev/null || true)"
+  [[ -n "$CODEX_REVIEW" ]] || CODEX_REVIEW="Codex CLI не вернул текст ревью."
+elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
   OPENAI_PAYLOAD="$(jq -n --arg sys "$SYSTEM_PROMPT" --arg usr "$USER_PROMPT" '{model:"o4-mini",messages:[{role:"system",content:$sys},{role:"user",content:$usr}]}' )"
   CODEX_REVIEW="$(curl -s https://api.openai.com/v1/chat/completions \
     -H "Authorization: Bearer ${OPENAI_API_KEY}" \
     -H "Content-Type: application/json" \
-    -d "$OPENAI_PAYLOAD" | jq -r '.choices[0].message.content // "Не удалось получить ревью от Codex"')"
+    -d "$OPENAI_PAYLOAD" | jq -r '.choices[0].message.content // "Не удалось получить ревью от OpenAI API"')"
+else
+  CODEX_REVIEW="Не найден ни codex CLI (OAuth), ни OPENAI_API_KEY. Ревью Codex пропущено."
 fi
 
 CLAUDE_REVIEW="CLI claude не найден, ревью Claude пропущено."
