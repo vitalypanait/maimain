@@ -3,9 +3,10 @@ set -euo pipefail
 
 PR_NUMBER="${1:-}"
 TASK_ID="${2:-}"
+REPO_PATH="${3:-}"
 
 if [[ -z "$PR_NUMBER" || -z "$TASK_ID" ]]; then
-  echo "Usage: $0 <pr-number> <task-id>" >&2
+  echo "Usage: $0 <pr-number> <task-id> [repo-path]" >&2
   exit 1
 fi
 
@@ -13,7 +14,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REGISTRY="$ROOT_DIR/registry/agents.json"
 
-DIFF_CONTENT="$(gh pr diff "$PR_NUMBER")"
+if [[ -z "$REPO_PATH" ]]; then
+  REPO_PATH="$(jq -r --arg t "$TASK_ID" '.agents[$t].repo_path // ""' "$REGISTRY")"
+fi
+if [[ -z "$REPO_PATH" ]]; then
+  REPO_PATH="$ROOT_DIR"
+fi
+
+DIFF_CONTENT="$(cd "$REPO_PATH" && gh pr diff "$PR_NUMBER")"
 ACCEPTANCE_CRITERIA="$(jq -r --arg task "$TASK_ID" '.agents[$task].acceptance_criteria // "(не указаны)"' "$REGISTRY")"
 
 SYSTEM_PROMPT="Ты дотошный ревьюер кода. Фокус: граничные случаи, отсутствующая обработка ошибок, состояния гонки, уязвимости безопасности. Будь лаконичен. Блокирующие проблемы помечай префиксом CRITICAL:"
@@ -39,8 +47,8 @@ if command -v claude >/dev/null 2>&1; then
   [[ -n "$CLAUDE_REVIEW" ]] || CLAUDE_REVIEW="Claude не вернул текст ревью."
 fi
 
-gh pr comment "$PR_NUMBER" --body "### Codex Review\n\n${CODEX_REVIEW}"
-gh pr comment "$PR_NUMBER" --body "### Claude Review\n\n${CLAUDE_REVIEW}"
+(cd "$REPO_PATH" && gh pr comment "$PR_NUMBER" --body "### Codex Review\n\n${CODEX_REVIEW}")
+(cd "$REPO_PATH" && gh pr comment "$PR_NUMBER" --body "### Claude Review\n\n${CLAUDE_REVIEW}")
 
 CRITICAL_LINES="$(printf "%s\n%s\n" "$CODEX_REVIEW" "$CLAUDE_REVIEW" | grep -E '^CRITICAL:' || true)"
 TMP_JSON="$(mktemp)"

@@ -104,6 +104,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     files_not_to_touch = ask("Файлы, которые нельзя трогать", "-")
     agent_type = ask("Тип агента (claude|codex)", "claude")
     repo = ask("Имя репозитория", ROOT.name)
+    repo_path = ask("Путь к целевому git-репозиторию", str(ROOT))
     acceptance = ask_multiline("Критерии приёмки")
     business_context = ask_multiline("Бизнес-контекст")
 
@@ -133,7 +134,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 "{{BUSINESS_CONTEXT}}": business_context or "(не указан)",
             },
         )
-        run_cmd([str(SCRIPTS_DIR / "spawn-agent.sh"), plan_id, agent_type, repo, str(plan_prompt)], cwd=ROOT)
+        run_cmd([str(SCRIPTS_DIR / "spawn-agent.sh"), plan_id, agent_type, repo, str(plan_prompt), repo_path], cwd=ROOT)
         update_agent_metadata(
             plan_id,
             task_description=f"Architecture planning: {args.task}",
@@ -141,11 +142,12 @@ def cmd_run(args: argparse.Namespace) -> None:
             business_context=business_context,
             files_to_focus=files_to_focus,
             files_not_to_touch="-",
+            repo_path=repo_path,
         )
         print(f"Архитектурный агент {plan_id} запущен. После мержа его PR запусти openclaw run без --plan-first для исполнения.")
         return
 
-    run_cmd([str(SCRIPTS_DIR / "spawn-agent.sh"), task_id, agent_type, repo, str(prompt_path)], cwd=ROOT)
+    run_cmd([str(SCRIPTS_DIR / "spawn-agent.sh"), task_id, agent_type, repo, str(prompt_path), repo_path], cwd=ROOT)
     update_agent_metadata(
         task_id,
         task_description=args.task,
@@ -153,6 +155,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         business_context=business_context,
         files_to_focus=files_to_focus,
         files_not_to_touch=files_not_to_touch,
+        repo_path=repo_path,
     )
     print(f"Агент {task_id} запущен. Мониторинг: python3 {ROOT / 'openclaw.py'} status")
 
@@ -164,6 +167,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
     files_to_focus = ask("Файлы/директории для анализа", ".")
     agent_type = ask("Тип агента (claude|codex)", "claude")
     repo = ask("Имя репозитория", ROOT.name)
+    repo_path = ask("Путь к целевому git-репозиторию", str(ROOT))
     business_context = ask_multiline("Бизнес-контекст")
 
     prompt_path = create_prompt_file(
@@ -177,7 +181,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
         },
     )
 
-    run_cmd([str(SCRIPTS_DIR / "spawn-agent.sh"), task_id, agent_type, repo, str(prompt_path)], cwd=ROOT)
+    run_cmd([str(SCRIPTS_DIR / "spawn-agent.sh"), task_id, agent_type, repo, str(prompt_path), repo_path], cwd=ROOT)
     update_agent_metadata(
         task_id,
         task_description=f"Architecture planning: {args.task}",
@@ -185,6 +189,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
         business_context=business_context,
         files_to_focus=files_to_focus,
         files_not_to_touch="-",
+        repo_path=repo_path,
     )
     print(f"Архитектурный агент {task_id} запущен. Результат появится в docs/architecture-{task_id}.md")
 
