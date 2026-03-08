@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MESSAGE="${1:-}"
+if [[ -z "$MESSAGE" ]]; then
+  echo "Usage: $0 <message>" >&2
+  exit 1
+fi
+
+if [[ -z "${TELEGRAM_BOT_TOKEN:-}" || -z "${TELEGRAM_CHAT_ID:-}" ]]; then
+  echo "TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID не заданы, уведомление пропущено" >&2
+  exit 0
+fi
+
+curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+  -d "chat_id=${TELEGRAM_CHAT_ID}" \
+  -d "parse_mode=Markdown" \
+  --data-urlencode "text=${MESSAGE}" >/dev/null
