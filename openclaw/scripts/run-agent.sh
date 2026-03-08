@@ -21,7 +21,7 @@ case "$AGENT_TYPE" in
       -p "$(cat "$PROMPT_FILE")"
     ;;
   codex)
-    codex --model gpt-4o \
+    codex --model openai-codex/gpt-5.3-codex \
       -c "model_reasoning_effort=high" \
       --dangerously-bypass-approvals-and-sandbox \
       "$(cat "$PROMPT_FILE")"
