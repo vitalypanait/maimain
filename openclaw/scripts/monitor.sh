@@ -87,7 +87,14 @@ full_restart() {
   agent="$(jq -r --arg t "$task_id" '.agents[$t].agent' "$REGISTRY")"
   repo="$(jq -r --arg t "$task_id" '.agents[$t].repo' "$REGISTRY")"
   repo_path="$(jq -r --arg t "$task_id" '.agents[$t].repo_path // ""' "$REGISTRY")"
-  "$ROOT_DIR/scripts/spawn-agent.sh" "$task_id" "$agent" "$repo" "$prompt_file" "$repo_path"
+  if ! "$ROOT_DIR/scripts/spawn-agent.sh" "$task_id" "$agent" "$repo" "$prompt_file" "$repo_path"; then
+    json_update --arg t "$task_id" --arg r "restart_spawn_failed:$reason" '
+      .agents[$t].status = "blocked" |
+      .agents[$t].last_failure = $r
+    '
+    "$ROOT_DIR/scripts/notify-telegram.sh" "🚨 Агент $task_id не удалось перезапустить (reason: $reason). Задача переведена в blocked."
+    return
+  fi
 }
 
 inject_context() {

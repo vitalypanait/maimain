@@ -55,11 +55,22 @@ else
 fi
 
 if [[ -e "$WORKTREE_PATH" ]]; then
-  echo "Worktree already exists: $WORKTREE_PATH" >&2
-  exit 1
+  # If path exists but is not a registered git worktree, treat it as stale and recreate.
+  if git -C "$TARGET_REPO_PATH" worktree list --porcelain | grep -Fqx "worktree $WORKTREE_PATH"; then
+    echo "Reusing existing worktree: $WORKTREE_PATH"
+  else
+    echo "Removing stale worktree directory: $WORKTREE_PATH"
+    rm -rf "$WORKTREE_PATH"
+  fi
 fi
 
-git -C "$TARGET_REPO_PATH" worktree add "$WORKTREE_PATH" -b "$BRANCH" "$BASE_REF"
+if [[ ! -d "$WORKTREE_PATH/.git" ]]; then
+  if git -C "$TARGET_REPO_PATH" show-ref --verify --quiet "refs/heads/$BRANCH"; then
+    git -C "$TARGET_REPO_PATH" worktree add "$WORKTREE_PATH" "$BRANCH"
+  else
+    git -C "$TARGET_REPO_PATH" worktree add "$WORKTREE_PATH" -b "$BRANCH" "$BASE_REF"
+  fi
+fi
 
 if [[ -f "$WORKTREE_PATH/package.json" ]]; then
   (cd "$WORKTREE_PATH" && pnpm install)
