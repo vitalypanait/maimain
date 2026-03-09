@@ -115,11 +115,6 @@ for task_id in "${TASK_IDS[@]}"; do
     session_alive="no"
   fi
 
-  if [[ "$session_alive" == "no" && "$status" == "running" ]]; then
-    full_restart "$task_id" "tmux_session_dead"
-    continue
-  fi
-
   repo_path="$(jq -r --arg t "$task_id" '.agents[$t].repo_path // ""' "$REGISTRY")"
   if [[ -z "$repo_path" ]]; then
     repo_path="$ROOT_DIR"
@@ -127,6 +122,9 @@ for task_id in "${TASK_IDS[@]}"; do
 
   pr_json="$(cd "$repo_path" && gh pr list --head "agent/$task_id" --json number,state,url --jq '.[0]')"
   if [[ -z "$pr_json" || "$pr_json" == "null" ]]; then
+    if [[ "$session_alive" == "no" && "$status" == "running" ]]; then
+      full_restart "$task_id" "tmux_session_dead"
+    fi
     continue
   fi
 
