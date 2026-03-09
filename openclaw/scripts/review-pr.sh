@@ -41,16 +41,9 @@ else
   CODEX_REVIEW="Не найден ни codex CLI (OAuth), ни OPENAI_API_KEY. Ревью Codex пропущено."
 fi
 
-CLAUDE_REVIEW="CLI claude не найден, ревью Claude пропущено."
-if command -v claude >/dev/null 2>&1; then
-  CLAUDE_REVIEW="$(claude -p "Проверь PR #${PR_NUMBER}. Diff:\n${DIFF_CONTENT}\n\nОтмечай только те проблемы, в которых уверен. Блокирующие помечай префиксом CRITICAL:" || true)"
-  [[ -n "$CLAUDE_REVIEW" ]] || CLAUDE_REVIEW="Claude не вернул текст ревью."
-fi
-
 (cd "$REPO_PATH" && gh pr comment "$PR_NUMBER" --body "### Codex Review\n\n${CODEX_REVIEW}")
-(cd "$REPO_PATH" && gh pr comment "$PR_NUMBER" --body "### Claude Review\n\n${CLAUDE_REVIEW}")
 
-CRITICAL_LINES="$(printf "%s\n%s\n" "$CODEX_REVIEW" "$CLAUDE_REVIEW" | grep -E '^CRITICAL:' || true)"
+CRITICAL_LINES="$(printf "%s\n" "$CODEX_REVIEW" | grep -E '^CRITICAL:' || true)"
 TMP_JSON="$(mktemp)"
 if [[ -n "$CRITICAL_LINES" ]]; then
   jq --arg task "$TASK_ID" --arg crit "$CRITICAL_LINES" '
