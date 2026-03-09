@@ -55,7 +55,7 @@ full_restart() {
   local task_id="$1"
   local reason="$2"
 
-  local retries agent repo next_retry
+  local retries agent repo repo_path next_retry
   retries="$(jq -r --arg t "$task_id" '.agents[$t].retries // 0' "$REGISTRY")"
   if (( retries >= 3 )); then
     json_update --arg t "$task_id" --arg r "$reason" '
@@ -72,6 +72,7 @@ full_restart() {
     .agents[$t].last_failure = $r |
     .agents[$t].status = "running"
   '
+  "$ROOT_DIR/scripts/notify-telegram.sh" "⚠️ Агент $task_id: зафиксирован фейл ($reason). Запускаю retry #$next_retry/3."
 
   local prompt_file
   prompt_file="$(build_restart_prompt "$task_id" "$next_retry" "$reason")"
@@ -82,7 +83,8 @@ full_restart() {
 
   agent="$(jq -r --arg t "$task_id" '.agents[$t].agent' "$REGISTRY")"
   repo="$(jq -r --arg t "$task_id" '.agents[$t].repo' "$REGISTRY")"
-  "$ROOT_DIR/scripts/spawn-agent.sh" "$task_id" "$agent" "$repo" "$prompt_file"
+  repo_path="$(jq -r --arg t "$task_id" '.agents[$t].repo_path // ""' "$REGISTRY")"
+  "$ROOT_DIR/scripts/spawn-agent.sh" "$task_id" "$agent" "$repo" "$prompt_file" "$repo_path"
 }
 
 inject_context() {
@@ -115,7 +117,12 @@ for task_id in "${TASK_IDS[@]}"; do
     continue
   fi
 
-  pr_json="$(gh pr list --head "agent/$task_id" --json number,state,url --jq '.[0]')"
+  repo_path="$(jq -r --arg t "$task_id" '.agents[$t].repo_path // ""' "$REGISTRY")"
+  if [[ -z "$repo_path" ]]; then
+    repo_path="$ROOT_DIR"
+  fi
+
+  pr_json="$(cd "$repo_path" && gh pr list --head "agent/$task_id" --json number,state,url --jq '.[0]')"
   if [[ -z "$pr_json" || "$pr_json" == "null" ]]; then
     continue
   fi
@@ -123,7 +130,7 @@ for task_id in "${TASK_IDS[@]}"; do
   pr_number="$(jq -r '.number' <<<"$pr_json")"
   json_update --arg t "$task_id" --argjson p "$pr_number" '.agents[$t].pr_number = $p'
 
-  checks="$(gh pr checks "$pr_number" --json name,state --jq '[.[] | {name,state}]')"
+  checks="$(cd "$repo_path" && gh pr checks "$pr_number" --json name,state --jq '[.[] | {name,state}]')"
   if jq -e 'map(select(.state == "failure")) | length > 0' >/dev/null <<<"$checks"; then
     full_restart "$task_id" "ci_failure"
     continue
@@ -136,7 +143,7 @@ for task_id in "${TASK_IDS[@]}"; do
   review_status="$(jq -r --arg t "$task_id" '.agents[$t].review_status' "$REGISTRY")"
   case "$review_status" in
     null)
-      "$ROOT_DIR/scripts/review-pr.sh" "$pr_number" "$task_id" >/dev/null 2>&1 &
+      "$ROOT_DIR/scripts/review-pr.sh" "$pr_number" "$task_id" "$repo_path" >/dev/null 2>&1 &
       json_update --arg t "$task_id" '.agents[$t].review_status = "pending"'
       ;;
     pending)
@@ -154,10 +161,24 @@ for task_id in "${TASK_IDS[@]}"; do
       fi
       ;;
     approved)
-      if [[ "$(jq -r --arg t "$task_id" '.agents[$t].notify_on_complete // true' "$REGISTRY")" == "true" ]]; then
+      if [[ "$task_id" == plan-* ]]; then
+        "$ROOT_DIR/scripts/notify-telegram.sh" "✅ План $task_id готов. PR #$pr_number создан. Отправляю архитектурный документ в Telegram."
+        plan_doc="$ROOT_DIR/agents/$task_id/docs/architecture-$task_id.md"
+        if [[ -f "$plan_doc" ]]; then
+          "$ROOT_DIR/scripts/notify-telegram-document.sh" "$plan_doc" "📐 Архитектурный план: $task_id"
+        else
+          "$ROOT_DIR/scripts/notify-telegram.sh" "⚠️ План $task_id завершён, но файл architecture-$task_id.md не найден в $ROOT_DIR/agents/$task_id/docs"
+        fi
+      elif [[ "$(jq -r --arg t "$task_id" '.agents[$t].notify_on_complete // true' "$REGISTRY")" == "true" ]]; then
         "$ROOT_DIR/scripts/notify-telegram.sh" "✅ Агент $task_id завершил задачу. PR #$pr_number готов к ревью человеком"
       fi
       json_update --arg t "$task_id" '.agents[$t].status = "done"'
       ;;
   esac
+done
+
+# Авто-синхронизация project-status.md для всех repo_path из registry
+mapfile -t REPO_PATHS < <(jq -r '.agents | to_entries[] | .value.repo_path // empty' "$REGISTRY" | awk 'NF' | sort -u)
+for repo_path in "${REPO_PATHS[@]}"; do
+  python3 "$ROOT_DIR/openclaw.py" status-sync --repo-path "$repo_path" >/dev/null 2>&1 || true
 done
