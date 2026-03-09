@@ -133,7 +133,7 @@ for task_id in "${TASK_IDS[@]}"; do
   pr_number="$(jq -r '.number' <<<"$pr_json")"
   json_update --arg t "$task_id" --argjson p "$pr_number" '.agents[$t].pr_number = $p'
 
-  checks="$(cd "$repo_path" && gh pr checks "$pr_number" --json name,state --jq '[.[] | {name,state}]')"
+  checks="$(cd "$repo_path" && gh pr checks "$pr_number" --json name,state --jq '[.[] | {name,state}]' 2>/dev/null || echo '[]')"
   if jq -e 'map(select(.state == "failure")) | length > 0' >/dev/null <<<"$checks"; then
     full_restart "$task_id" "ci_failure"
     continue
