@@ -320,22 +320,35 @@ def cmd_kill(args: argparse.Namespace) -> None:
     print(f"Агент {args.task_id} остановлен")
 
 
+def cmd_cleanup(_: argparse.Namespace) -> None:
+    cleanup_script = ROOT / "scripts" / "cleanup.sh"
+    run_cmd([str(cleanup_script)], cwd=ROOT)
+
+
 def cmd_install_cron(_: argparse.Namespace) -> None:
     monitor = ROOT / "scripts" / "monitor.sh"
-    log_file = ROOT / "logs" / "monitor.log"
-    line = f"*/10 * * * * {monitor} >> {log_file} 2>&1"
+    monitor_log = ROOT / "logs" / "monitor.log"
+    cleanup = ROOT / "scripts" / "cleanup.sh"
+    cleanup_log = ROOT / "logs" / "cleanup.log"
+
+    monitor_line = f"*/10 * * * * {monitor} >> {monitor_log} 2>&1"
+    cleanup_line = f"0 3 * * * {cleanup} >> {cleanup_log} 2>&1"
 
     current = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
     existing = current.stdout if current.returncode == 0 else ""
     lines = [l for l in existing.splitlines() if l.strip()]
-    if line not in lines:
-      lines.append(line)
+    if monitor_line not in lines:
+        lines.append(monitor_line)
+    if cleanup_line not in lines:
+        lines.append(cleanup_line)
+
     payload = "\n".join(lines) + "\n"
     proc = subprocess.run(["crontab", "-"], input=payload, text=True)
     if proc.returncode != 0:
         raise SystemExit(proc.returncode)
     print("Cron установлен:")
-    print(line)
+    print(monitor_line)
+    print(cleanup_line)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -362,8 +375,11 @@ def build_parser() -> argparse.ArgumentParser:
     kill_p.add_argument("task_id")
     kill_p.set_defaults(func=cmd_kill)
 
-    cron_p = sub.add_parser("install-cron", help="Установить cron для monitor.sh")
+    cron_p = sub.add_parser("install-cron", help="Установить cron для monitor.sh и daily cleanup")
     cron_p.set_defaults(func=cmd_install_cron)
+
+    cleanup_p = sub.add_parser("cleanup", help="Очистить осиротевшие worktree и stale записи registry")
+    cleanup_p.set_defaults(func=cmd_cleanup)
 
     sync_p = sub.add_parser("status-sync", help="Синхронизировать docs/project-status.md для репозитория")
     sync_p.add_argument("--repo-path", required=True, help="Путь к целевому git-репозиторию")

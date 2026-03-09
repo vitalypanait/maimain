@@ -38,6 +38,7 @@ python3 openclaw.py plan "добавить платёжный модуль"
 python3 openclaw.py status
 python3 openclaw.py logs <task-id>
 python3 openclaw.py kill <task-id>
+python3 openclaw.py cleanup
 ```
 
 `run` поддерживает:
@@ -56,6 +57,14 @@ python3 openclaw.py run "добавить платёжный модуль" --pla
 5. Запускает `review-pr.sh` или завершает задачу, уведомляя в Telegram.
 
 Источник истины — `registry/agents.json`.
+
+## Шаг 8: Merge + cleanup
+
+- После мержа PR ежедневный cron запускает `scripts/cleanup.sh`.
+- `cleanup.sh` удаляет:
+  - осиротевшие worktree у терминальных задач (`done/blocked/cancelled`),
+  - записи из `registry/agents.json`, если ветка задачи уже влита в `main`.
+- Ручной запуск: `python3 openclaw.py cleanup`.
 
 ## Как работает Цикл Ральфа V2
 
