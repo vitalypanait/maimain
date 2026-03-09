@@ -99,7 +99,10 @@ inject_context() {
   '
 }
 
-mapfile -t TASK_IDS < <(jq -r '.agents | keys[]' "$REGISTRY")
+TASK_IDS=()
+while IFS= read -r line; do
+  TASK_IDS+=("$line")
+done < <(jq -r '.agents | keys[]' "$REGISTRY")
 
 for task_id in "${TASK_IDS[@]}"; do
   status="$(jq -r --arg t "$task_id" '.agents[$t].status' "$REGISTRY")"
@@ -178,7 +181,10 @@ for task_id in "${TASK_IDS[@]}"; do
 done
 
 # Авто-синхронизация project-status.md для всех repo_path из registry
-mapfile -t REPO_PATHS < <(jq -r '.agents | to_entries[] | .value.repo_path // empty' "$REGISTRY" | awk 'NF' | sort -u)
+REPO_PATHS=()
+while IFS= read -r line; do
+  REPO_PATHS+=("$line")
+done < <(jq -r '.agents | to_entries[] | .value.repo_path // empty' "$REGISTRY" | awk 'NF' | sort -u)
 for repo_path in "${REPO_PATHS[@]}"; do
   python3 "$ROOT_DIR/openclaw.py" status-sync --repo-path "$repo_path" >/dev/null 2>&1 || true
 done
