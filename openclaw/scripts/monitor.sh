@@ -187,5 +187,6 @@ while IFS= read -r line; do
   REPO_PATHS+=("$line")
 done < <(jq -r '.agents | to_entries[] | .value.repo_path // empty' "$REGISTRY" | awk 'NF' | sort -u)
 for repo_path in "${REPO_PATHS[@]-}"; do
+  [[ -n "$repo_path" ]] || continue
   python3 "$ROOT_DIR/openclaw.py" status-sync --repo-path "$repo_path" >/dev/null 2>&1 || true
 done
