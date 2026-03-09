@@ -101,6 +101,21 @@ def detect_repo_value(repo_path: str) -> str:
     return path.name
 
 
+def get_latest_plan_context() -> Dict[str, Any] | None:
+    registry = load_registry()
+    agents = registry.get("agents", {})
+    plans: list[tuple[str, Dict[str, Any]]] = [
+        (task_id, data)
+        for task_id, data in agents.items()
+        if task_id.startswith("plan-") and data.get("status") != "cancelled"
+    ]
+    if not plans:
+        return None
+    plans.sort(key=lambda x: x[1].get("created_at", ""))
+    task_id, data = plans[-1]
+    return {"task_id": task_id, **data}
+
+
 def render_template(template_path: Path, replacements: Dict[str, str]) -> str:
     text = template_path.read_text(encoding="utf-8")
     for key, value in replacements.items():
@@ -203,14 +218,21 @@ def cmd_run(args: argparse.Namespace) -> None:
     ensure_layout()
     task_id = f"task-{int(time.time())}"
 
-    files_to_focus = ask("Файлы/директории для работы", ".")
+    latest_plan = get_latest_plan_context()
+    files_to_focus_default = (latest_plan or {}).get("files_to_focus") or "."
+    files_to_focus = ask("Файлы/директории для работы", files_to_focus_default)
     files_not_to_touch = ask("Файлы, которые нельзя трогать", "-")
-    agent_type = ask("Тип агента (claude|codex)", "claude")
-    repo_url_or_name = ask("Ссылка на репозиторий (опционально; если пусто — определю из project folder)", "")
-    repo_path = ask_required("Путь к директории кода (целевой git-репозиторий)")
-    repo = repo_url_or_name or detect_repo_value(repo_path)
-    if not repo_url_or_name:
-        print(f"Repo не передан, использую из project folder: {repo}")
+    agent_type = "codex"
+
+    if latest_plan and latest_plan.get("repo_path"):
+        repo_path = str(Path(latest_plan["repo_path"]).expanduser().resolve())
+        repo = latest_plan.get("repo") or detect_repo_value(repo_path)
+        print(f"Использую repo_path из последнего плана {latest_plan['task_id']}: {repo_path}")
+    else:
+        repo_path = ask_required("Путь к директории кода (целевой git-репозиторий)")
+        repo = detect_repo_value(repo_path)
+        print(f"Repo определён из project folder: {repo}")
+
     plan_dir = str(Path(repo_path).expanduser().resolve() / "docs")
     acceptance = ask_multiline("Критерии приёмки")
     business_context = ask_multiline("Бизнес-контекст")
@@ -277,12 +299,10 @@ def cmd_plan(args: argparse.Namespace) -> None:
     task_id = f"plan-{int(time.time())}"
 
     files_to_focus = ask("Файлы/директории для анализа", ".")
-    agent_type = ask("Тип агента (claude|codex)", "claude")
-    repo_url_or_name = ask("Ссылка на репозиторий (опционально; если пусто — определю из project folder)", "")
+    agent_type = "codex"
     repo_path = ask_required("Путь к директории кода (целевой git-репозиторий)")
-    repo = repo_url_or_name or detect_repo_value(repo_path)
-    if not repo_url_or_name:
-        print(f"Repo не передан, использую из project folder: {repo}")
+    repo = detect_repo_value(repo_path)
+    print(f"Repo определён из project folder: {repo}")
     plan_dir = str(Path(repo_path).expanduser().resolve() / "docs")
     business_context = ask_multiline("Бизнес-контекст")
 
@@ -331,7 +351,7 @@ def cmd_revise_plan(args: argparse.Namespace) -> None:
     files_to_focus = base.get("files_to_focus") or "."
     business_context = base.get("business_context") or ""
     plan_dir = base.get("plan_path") or str(Path(repo_path).expanduser().resolve() / "docs")
-    agent_type = ask("Тип агента для доработки плана (claude|codex)", base.get("agent") or "codex")
+    agent_type = "codex"
 
     revised_task = (
         f"Доработка существующего архитектурного плана {args.plan_id}: {args.changes}\n\n"
