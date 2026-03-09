@@ -160,10 +160,24 @@ for task_id in "${TASK_IDS[@]}"; do
       fi
       ;;
     approved)
-      if [[ "$(jq -r --arg t "$task_id" '.agents[$t].notify_on_complete // true' "$REGISTRY")" == "true" ]]; then
+      if [[ "$task_id" == plan-* ]]; then
+        "$ROOT_DIR/scripts/notify-telegram.sh" "✅ План $task_id готов. PR #$pr_number создан. Отправляю архитектурный документ в Telegram."
+        plan_doc="$ROOT_DIR/agents/$task_id/docs/architecture-$task_id.md"
+        if [[ -f "$plan_doc" ]]; then
+          "$ROOT_DIR/scripts/notify-telegram-document.sh" "$plan_doc" "📐 Архитектурный план: $task_id"
+        else
+          "$ROOT_DIR/scripts/notify-telegram.sh" "⚠️ План $task_id завершён, но файл architecture-$task_id.md не найден в $ROOT_DIR/agents/$task_id/docs"
+        fi
+      elif [[ "$(jq -r --arg t "$task_id" '.agents[$t].notify_on_complete // true' "$REGISTRY")" == "true" ]]; then
         "$ROOT_DIR/scripts/notify-telegram.sh" "✅ Агент $task_id завершил задачу. PR #$pr_number готов к ревью человеком"
       fi
       json_update --arg t "$task_id" '.agents[$t].status = "done"'
       ;;
   esac
+done
+
+# Авто-синхронизация project-status.md для всех repo_path из registry
+mapfile -t REPO_PATHS < <(jq -r '.agents | to_entries[] | .value.repo_path // empty' "$REGISTRY" | awk 'NF' | sort -u)
+for repo_path in "${REPO_PATHS[@]}"; do
+  python3 "$ROOT_DIR/openclaw.py" status-sync --repo-path "$repo_path" >/dev/null 2>&1 || true
 done

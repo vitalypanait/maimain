@@ -56,6 +56,16 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> int:
     return proc.returncode
 
 
+def run_capture(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        cmd,
+        cwd=str(cwd) if cwd else None,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 def ask(prompt: str, default: str | None = None) -> str:
     suffix = f" [{default}]" if default else ""
     value = input(f"{prompt}{suffix}: ").strip()
@@ -94,6 +104,83 @@ def update_agent_metadata(task_id: str, **fields: Any) -> None:
     agent = registry.setdefault("agents", {}).setdefault(task_id, {})
     agent.update(fields)
     save_registry(registry)
+
+
+def render_project_status(repo_path: Path, registry: Dict[str, Any]) -> str:
+    agents = registry.get("agents", {})
+    repo_agents = {k: v for k, v in agents.items() if Path(v.get("repo_path", "")).resolve() == repo_path.resolve()}
+
+    now = time.strftime("%Y-%m-%d %H:%M")
+    lines: list[str] = [
+        "# Project Status",
+        "",
+        f"_Last updated: {now}_",
+        "",
+        "## Orchestrator tasks",
+    ]
+
+    if not repo_agents:
+        lines.append("- Нет задач для этого репозитория в registry")
+    else:
+        for task_id, data in sorted(repo_agents.items()):
+            lines.append(
+                f"- `{task_id}`: status={data.get('status','-')}, retries={data.get('retries',0)}, "
+                f"pr={data.get('pr_number','-')}, review={data.get('review_status','-')}"
+            )
+
+    lines += ["", "## Pull requests"]
+    prs: list[dict[str, Any]] = []
+    prs_proc = run_capture([
+        "gh", "pr", "list", "--state", "all", "--limit", "30", "--json", "number,title,headRefName,baseRefName,state,url"
+    ], cwd=repo_path)
+    if prs_proc.returncode == 0 and prs_proc.stdout.strip():
+        try:
+            prs = json.loads(prs_proc.stdout)
+        except Exception:
+            prs = []
+
+    if prs:
+        for pr in prs:
+            lines.append(
+                f"- #{pr.get('number')} [{pr.get('state')}] {pr.get('title')} "
+                f"(`{pr.get('headRefName')}` -> `{pr.get('baseRefName')}`)\n  {pr.get('url')}"
+            )
+    else:
+        lines.append("- PR не найдены или `gh` недоступен")
+
+    lines += [
+        "",
+        "## MVP checklist (manual update)",
+        "- [ ] MVP-0 merged",
+        "- [ ] MVP-1 merged",
+        "- [ ] MVP-2 merged",
+        "- [ ] MVP-3 started",
+        "",
+        "## Plan progress (manual update)",
+        "- [ ] 1. ADR/contracts",
+        "- [ ] 2. Service scaffold/config",
+        "- [ ] 3. Domain model/validation",
+        "- [ ] 4. Prompt policy",
+        "- [ ] 5. Telegram inbound adapter",
+        "- [ ] 6. Vision adapter",
+        "- [ ] 7. LLM adapter",
+        "- [ ] 8. Pipeline orchestration",
+        "- [ ] 9. Safety/fallback",
+        "- [ ] 10. Observability",
+        "- [ ] 11. Persistence/idempotency",
+        "- [ ] 12. Contract/E2E tests",
+        "- [ ] 13. Release runbook",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def cmd_status_sync(args: argparse.Namespace) -> None:
+    registry = load_registry()
+    repo_path = Path(args.repo_path).expanduser().resolve()
+    out_path = repo_path / "docs" / "project-status.md"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(render_project_status(repo_path, registry), encoding="utf-8")
+    print(f"Статус синхронизирован: {out_path}")
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -144,6 +231,7 @@ def cmd_run(args: argparse.Namespace) -> None:
             files_not_to_touch="-",
             repo_path=repo_path,
         )
+        cmd_status_sync(argparse.Namespace(repo_path=repo_path))
         print(f"Архитектурный агент {plan_id} запущен. После мержа его PR запусти openclaw run без --plan-first для исполнения.")
         return
 
@@ -157,6 +245,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         files_not_to_touch=files_not_to_touch,
         repo_path=repo_path,
     )
+    cmd_status_sync(argparse.Namespace(repo_path=repo_path))
     print(f"Агент {task_id} запущен. Мониторинг: python3 {ROOT / 'openclaw.py'} status")
 
 
@@ -191,6 +280,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
         files_not_to_touch="-",
         repo_path=repo_path,
     )
+    cmd_status_sync(argparse.Namespace(repo_path=repo_path))
     print(f"Архитектурный агент {task_id} запущен. Результат появится в docs/architecture-{task_id}.md")
 
 
@@ -274,6 +364,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     cron_p = sub.add_parser("install-cron", help="Установить cron для monitor.sh")
     cron_p.set_defaults(func=cmd_install_cron)
+
+    sync_p = sub.add_parser("status-sync", help="Синхронизировать docs/project-status.md для репозитория")
+    sync_p.add_argument("--repo-path", required=True, help="Путь к целевому git-репозиторию")
+    sync_p.set_defaults(func=cmd_status_sync)
 
     return parser
 

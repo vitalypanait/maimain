@@ -29,7 +29,7 @@ USER_PROMPT="Проверь этот PR.\n\nКритерии приёмки:\n${
 
 CODEX_REVIEW=""
 if command -v codex >/dev/null 2>&1; then
-  CODEX_REVIEW="$(codex exec --full-auto --model openai-codex/gpt-5.3-codex "${SYSTEM_PROMPT}\n\n${USER_PROMPT}" 2>/dev/null || true)"
+  CODEX_REVIEW="$(codex exec --full-auto --model gpt-5.3-codex "${SYSTEM_PROMPT}\n\n${USER_PROMPT}" 2>/dev/null || true)"
   [[ -n "$CODEX_REVIEW" ]] || CODEX_REVIEW="Codex CLI не вернул текст ревью."
 elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
   OPENAI_PAYLOAD="$(jq -n --arg sys "$SYSTEM_PROMPT" --arg usr "$USER_PROMPT" '{model:"o4-mini",messages:[{role:"system",content:$sys},{role:"user",content:$usr}]}' )"

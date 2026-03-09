@@ -99,7 +99,7 @@ if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
   tmux kill-session -t "$SESSION_NAME"
 fi
 
-TMUX_CMD="script -f '$LOG_FILE' -c '$RUN_SCRIPT $AGENT_TYPE $PROMPT_ABS'"
-tmux new-session -d -s "$SESSION_NAME" -c "$WORKTREE_PATH" "$TMUX_CMD"
+TMUX_CMD="script -q '$LOG_FILE' '$RUN_SCRIPT' '$AGENT_TYPE' '$PROMPT_ABS'"
+tmux new-session -d -s "$SESSION_NAME" -c "$WORKTREE_PATH" "bash -lc \"$TMUX_CMD\""
 
 echo "Agent $TASK_ID spawned in $WORKTREE_PATH (repo: $TARGET_REPO_PATH)"
