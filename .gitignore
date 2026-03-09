@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Orchestrator runtime/state (do not commit project-specific data)
+openclaw/.env
+openclaw/logs/
+openclaw/agents/
+openclaw/registry/agents.json
+
+# optional local caches
+**/.pytest_cache/
+**/__pycache__/
