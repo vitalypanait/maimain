@@ -108,6 +108,7 @@ while IFS= read -r line; do
 done < <(jq -r '.agents | keys[]' "$REGISTRY")
 
 for task_id in "${TASK_IDS[@]-}"; do
+  [[ -n "$task_id" ]] || continue
   status="$(jq -r --arg t "$task_id" '.agents[$t].status' "$REGISTRY")"
   if [[ "$status" == "done" || "$status" == "blocked" || "$status" == "cancelled" ]]; then
     continue
