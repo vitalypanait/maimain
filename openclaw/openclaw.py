@@ -93,6 +93,14 @@ def ask_required(prompt: str) -> str:
         print("Это поле обязательно. Укажи значение.")
 
 
+def detect_repo_value(repo_path: str) -> str:
+    path = Path(repo_path).expanduser().resolve()
+    remote = run_capture(["git", "remote", "get-url", "origin"], cwd=path)
+    if remote.returncode == 0 and remote.stdout.strip():
+        return remote.stdout.strip()
+    return path.name
+
+
 def render_template(template_path: Path, replacements: Dict[str, str]) -> str:
     text = template_path.read_text(encoding="utf-8")
     for key, value in replacements.items():
@@ -198,8 +206,11 @@ def cmd_run(args: argparse.Namespace) -> None:
     files_to_focus = ask("Файлы/директории для работы", ".")
     files_not_to_touch = ask("Файлы, которые нельзя трогать", "-")
     agent_type = ask("Тип агента (claude|codex)", "claude")
-    repo = ask("Имя репозитория", ROOT.name)
+    repo_url_or_name = ask("Ссылка на репозиторий (опционально; если пусто — определю из project folder)", "")
     repo_path = ask_required("Путь к директории кода (целевой git-репозиторий)")
+    repo = repo_url_or_name or detect_repo_value(repo_path)
+    if not repo_url_or_name:
+        print(f"Repo не передан, использую из project folder: {repo}")
     plan_dir = str(Path(repo_path).expanduser().resolve() / "docs")
     acceptance = ask_multiline("Критерии приёмки")
     business_context = ask_multiline("Бизнес-контекст")
@@ -267,8 +278,11 @@ def cmd_plan(args: argparse.Namespace) -> None:
 
     files_to_focus = ask("Файлы/директории для анализа", ".")
     agent_type = ask("Тип агента (claude|codex)", "claude")
-    repo = ask("Имя репозитория", ROOT.name)
+    repo_url_or_name = ask("Ссылка на репозиторий (опционально; если пусто — определю из project folder)", "")
     repo_path = ask_required("Путь к директории кода (целевой git-репозиторий)")
+    repo = repo_url_or_name or detect_repo_value(repo_path)
+    if not repo_url_or_name:
+        print(f"Repo не передан, использую из project folder: {repo}")
     plan_dir = str(Path(repo_path).expanduser().resolve() / "docs")
     business_context = ask_multiline("Бизнес-контекст")
 
