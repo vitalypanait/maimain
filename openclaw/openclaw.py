@@ -85,6 +85,14 @@ def ask_multiline(prompt: str) -> str:
     return "\n".join(lines).strip()
 
 
+def ask_required(prompt: str) -> str:
+    while True:
+        value = input(f"{prompt}: ").strip()
+        if value:
+            return value
+        print("Это поле обязательно. Укажи значение.")
+
+
 def render_template(template_path: Path, replacements: Dict[str, str]) -> str:
     text = template_path.read_text(encoding="utf-8")
     for key, value in replacements.items():
@@ -191,7 +199,8 @@ def cmd_run(args: argparse.Namespace) -> None:
     files_not_to_touch = ask("Файлы, которые нельзя трогать", "-")
     agent_type = ask("Тип агента (claude|codex)", "claude")
     repo = ask("Имя репозитория", ROOT.name)
-    repo_path = ask("Путь к целевому git-репозиторию", str(ROOT))
+    repo_path = ask_required("Путь к директории кода (целевой git-репозиторий)")
+    plan_dir = ask_required("Путь к директории плана (где хранить architecture/project docs)")
     acceptance = ask_multiline("Критерии приёмки")
     business_context = ask_multiline("Бизнес-контекст")
 
@@ -219,17 +228,19 @@ def cmd_run(args: argparse.Namespace) -> None:
                 "{{TASK_ID}}": plan_id,
                 "{{FILES_TO_FOCUS}}": files_to_focus,
                 "{{BUSINESS_CONTEXT}}": business_context or "(не указан)",
+                "{{PLAN_PATH}}": plan_dir,
             },
         )
         run_cmd([str(SCRIPTS_DIR / "spawn-agent.sh"), plan_id, agent_type, repo, str(plan_prompt), repo_path], cwd=ROOT)
         update_agent_metadata(
             plan_id,
             task_description=f"Architecture planning: {args.task}",
-            acceptance_criteria="Создан architecture doc + PR",
+            acceptance_criteria=f"{plan_dir}/architecture-{plan_id}.md создан и PR открыт",
             business_context=business_context,
             files_to_focus=files_to_focus,
             files_not_to_touch="-",
             repo_path=repo_path,
+            plan_path=plan_dir,
         )
         cmd_status_sync(argparse.Namespace(repo_path=repo_path))
         print(f"Архитектурный агент {plan_id} запущен. После мержа его PR запусти openclaw run без --plan-first для исполнения.")
@@ -244,6 +255,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         files_to_focus=files_to_focus,
         files_not_to_touch=files_not_to_touch,
         repo_path=repo_path,
+        plan_path=plan_dir,
     )
     cmd_status_sync(argparse.Namespace(repo_path=repo_path))
     print(f"Агент {task_id} запущен. Мониторинг: python3 {ROOT / 'openclaw.py'} status")
@@ -256,7 +268,8 @@ def cmd_plan(args: argparse.Namespace) -> None:
     files_to_focus = ask("Файлы/директории для анализа", ".")
     agent_type = ask("Тип агента (claude|codex)", "claude")
     repo = ask("Имя репозитория", ROOT.name)
-    repo_path = ask("Путь к целевому git-репозиторию", str(ROOT))
+    repo_path = ask_required("Путь к директории кода (целевой git-репозиторий)")
+    plan_dir = ask_required("Путь к директории плана (где хранить architecture/project docs)")
     business_context = ask_multiline("Бизнес-контекст")
 
     prompt_path = create_prompt_file(
@@ -267,6 +280,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
             "{{TASK_ID}}": task_id,
             "{{FILES_TO_FOCUS}}": files_to_focus,
             "{{BUSINESS_CONTEXT}}": business_context or "(не указан)",
+            "{{PLAN_PATH}}": plan_dir,
         },
     )
 
@@ -274,14 +288,15 @@ def cmd_plan(args: argparse.Namespace) -> None:
     update_agent_metadata(
         task_id,
         task_description=f"Architecture planning: {args.task}",
-        acceptance_criteria=f"docs/architecture-{task_id}.md создан и PR открыт",
+        acceptance_criteria=f"{plan_dir}/architecture-{task_id}.md создан и PR открыт",
         business_context=business_context,
         files_to_focus=files_to_focus,
         files_not_to_touch="-",
         repo_path=repo_path,
+        plan_path=plan_dir,
     )
     cmd_status_sync(argparse.Namespace(repo_path=repo_path))
-    print(f"Архитектурный агент {task_id} запущен. Результат появится в docs/architecture-{task_id}.md")
+    print(f"Архитектурный агент {task_id} запущен. Результат появится в {plan_dir}/architecture-{task_id}.md")
 
 
 def cmd_status(_: argparse.Namespace) -> None:
