@@ -313,6 +313,58 @@ def cmd_plan(args: argparse.Namespace) -> None:
     print(f"Архитектурный агент {task_id} запущен. Результат появится в {plan_dir}/architecture-{task_id}.md")
 
 
+def cmd_revise_plan(args: argparse.Namespace) -> None:
+    ensure_layout()
+    registry = load_registry()
+    base = registry.get("agents", {}).get(args.plan_id)
+    if not base:
+        raise SystemExit(f"План не найден в registry: {args.plan_id}")
+    if not args.plan_id.startswith("plan-"):
+        raise SystemExit("Команда revise-plan работает только с plan-* задачами")
+
+    task_id = f"plan-{int(time.time())}"
+    repo_path = base.get("repo_path")
+    if not repo_path:
+        raise SystemExit(f"У {args.plan_id} не найден repo_path")
+
+    repo = base.get("repo") or detect_repo_value(repo_path)
+    files_to_focus = base.get("files_to_focus") or "."
+    business_context = base.get("business_context") or ""
+    plan_dir = base.get("plan_path") or str(Path(repo_path).expanduser().resolve() / "docs")
+    agent_type = ask("Тип агента для доработки плана (claude|codex)", base.get("agent") or "codex")
+
+    revised_task = (
+        f"Доработка существующего архитектурного плана {args.plan_id}: {args.changes}\n\n"
+        f"Обязательно учти предыдущий план и PR этой ветки, сохрани результат как architecture-{task_id}.md"
+    )
+
+    prompt_path = create_prompt_file(
+        task_id,
+        "architect.md.tmpl",
+        {
+            "{{TASK_DESCRIPTION}}": revised_task,
+            "{{TASK_ID}}": task_id,
+            "{{FILES_TO_FOCUS}}": files_to_focus,
+            "{{BUSINESS_CONTEXT}}": business_context or "(не указан)",
+            "{{PLAN_PATH}}": plan_dir,
+        },
+    )
+
+    run_cmd([str(SCRIPTS_DIR / "spawn-agent.sh"), task_id, agent_type, repo, str(prompt_path), repo_path], cwd=ROOT)
+    update_agent_metadata(
+        task_id,
+        task_description=f"Architecture planning revision of {args.plan_id}: {args.changes}",
+        acceptance_criteria=f"{plan_dir}/architecture-{task_id}.md создан и PR открыт",
+        business_context=business_context,
+        files_to_focus=files_to_focus,
+        files_not_to_touch="-",
+        repo_path=repo_path,
+        plan_path=plan_dir,
+    )
+    cmd_status_sync(argparse.Namespace(repo_path=repo_path))
+    print(f"Агент доработки плана {task_id} запущен на базе {args.plan_id}. Результат: {plan_dir}/architecture-{task_id}.md")
+
+
 def cmd_status(_: argparse.Namespace) -> None:
     registry = load_registry()
     agents = registry.get("agents", {})
@@ -392,6 +444,11 @@ def build_parser() -> argparse.ArgumentParser:
     plan_p = sub.add_parser("plan", help='Запустить архитектурного агента')
     plan_p.add_argument("task", help="Описание задачи")
     plan_p.set_defaults(func=cmd_plan)
+
+    revise_p = sub.add_parser("revise-plan", help="Запустить доработку существующего плана")
+    revise_p.add_argument("plan_id", help="ID существующего плана (например, plan-1773055168)")
+    revise_p.add_argument("changes", help="Что нужно добавить/изменить в плане")
+    revise_p.set_defaults(func=cmd_revise_plan)
 
     status_p = sub.add_parser("status", help="Показать состояние агентов")
     status_p.set_defaults(func=cmd_status)
