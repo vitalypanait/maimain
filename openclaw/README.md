@@ -96,6 +96,20 @@ crontab -l
 (crontab -l 2>/dev/null | grep -v '/scripts/monitor.sh' | grep -v '/scripts/cleanup.sh') | crontab -
 ```
 
+### Логи ревью
+
+Фоновый `review-pr.sh` пишет вывод в отдельный лог:
+
+```bash
+openclaw/logs/review-<task-id>.log
+```
+
+Пример:
+
+```bash
+tail -n 100 /Users/vitaliypanait/.openclaw/workspace/maimain/openclaw/logs/review-plan-1773051159.log
+```
+
 ## Как работает Цикл Ральфа V2
 
 Адаптивный перезапуск с контекстом:

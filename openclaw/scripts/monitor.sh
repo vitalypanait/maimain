@@ -148,7 +148,8 @@ for task_id in "${TASK_IDS[@]-}"; do
   review_status="$(jq -r --arg t "$task_id" '.agents[$t].review_status' "$REGISTRY")"
   case "$review_status" in
     null)
-      "$ROOT_DIR/scripts/review-pr.sh" "$pr_number" "$task_id" "$repo_path" >/dev/null 2>&1 &
+      review_log="$LOGS_DIR/review-$task_id.log"
+      "$ROOT_DIR/scripts/review-pr.sh" "$pr_number" "$task_id" "$repo_path" >>"$review_log" 2>&1 &
       json_update --arg t "$task_id" '.agents[$t].review_status = "pending"'
       ;;
     pending)
