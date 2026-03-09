@@ -45,10 +45,13 @@ if git -C "$TARGET_REPO_PATH" show-ref --verify --quiet refs/remotes/origin/main
   BASE_REF="origin/main"
 elif git -C "$TARGET_REPO_PATH" show-ref --verify --quiet refs/heads/main; then
   BASE_REF="main"
+elif git -C "$TARGET_REPO_PATH" show-ref --verify --quiet refs/remotes/origin/master; then
+  BASE_REF="origin/master"
 elif git -C "$TARGET_REPO_PATH" show-ref --verify --quiet refs/heads/master; then
   BASE_REF="master"
 else
-  BASE_REF="HEAD"
+  echo "Не найдена базовая ветка main/master (локально или в origin). Создай main/master перед запуском оркестратора." >&2
+  exit 1
 fi
 
 if [[ -e "$WORKTREE_PATH" ]]; then

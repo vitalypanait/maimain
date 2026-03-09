@@ -2,6 +2,8 @@
 
 Shell-based система оркестрации AI-агентов для параллельной разработки через изолированные git worktree + tmux.
 
+> Ветки агентов (`agent/<task-id>`) всегда создаются от `main/master` (приоритет: `origin/main` → `main` → `origin/master` → `master`).
+
 > Текущее состояние: оркестрация пока работает через модель `openai-codex/gpt-5.3-codex`.
 
 ## Зависимости
