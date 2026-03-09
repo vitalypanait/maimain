@@ -69,6 +69,31 @@ python3 openclaw.py run "добавить платёжный модуль" --pla
   - записи из `registry/agents.json`, если ветка задачи уже влита в `main`.
 - Ручной запуск: `python3 openclaw.py cleanup`.
 
+## Cron jobs (macOS)
+
+После `python3 openclaw.py install-cron` в `crontab` добавляются 2 задачи:
+
+```cron
+*/10 * * * * /Users/vitaliypanait/.openclaw/workspace/maimain/openclaw/scripts/monitor.sh >> /Users/vitaliypanait/.openclaw/workspace/maimain/openclaw/logs/monitor.log 2>&1
+0 3 * * * /Users/vitaliypanait/.openclaw/workspace/maimain/openclaw/scripts/cleanup.sh >> /Users/vitaliypanait/.openclaw/workspace/maimain/openclaw/logs/cleanup.log 2>&1
+```
+
+Что делают:
+- `monitor.sh` — каждые 10 минут: статусы задач, PR/CI/review, ретраи, Telegram-уведомления.
+- `cleanup.sh` — ежедневно в 03:00: уборка orphan worktree и stale runtime-записей.
+
+Проверить:
+
+```bash
+crontab -l
+```
+
+Удалить только эти 2 записи:
+
+```bash
+(crontab -l 2>/dev/null | grep -v '/scripts/monitor.sh' | grep -v '/scripts/cleanup.sh') | crontab -
+```
+
 ## Как работает Цикл Ральфа V2
 
 Адаптивный перезапуск с контекстом:
