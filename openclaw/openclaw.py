@@ -200,7 +200,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     agent_type = ask("Тип агента (claude|codex)", "claude")
     repo = ask("Имя репозитория", ROOT.name)
     repo_path = ask_required("Путь к директории кода (целевой git-репозиторий)")
-    plan_dir = ask_required("Путь к директории плана (где хранить architecture/project docs)")
+    plan_dir = str(Path(repo_path).expanduser().resolve() / "docs")
     acceptance = ask_multiline("Критерии приёмки")
     business_context = ask_multiline("Бизнес-контекст")
 
@@ -269,7 +269,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
     agent_type = ask("Тип агента (claude|codex)", "claude")
     repo = ask("Имя репозитория", ROOT.name)
     repo_path = ask_required("Путь к директории кода (целевой git-репозиторий)")
-    plan_dir = ask_required("Путь к директории плана (где хранить architecture/project docs)")
+    plan_dir = str(Path(repo_path).expanduser().resolve() / "docs")
     business_context = ask_multiline("Бизнес-контекст")
 
     prompt_path = create_prompt_file(
