@@ -342,7 +342,8 @@ def cmd_revise_plan(args: argparse.Namespace) -> None:
     if not args.plan_id.startswith("plan-"):
         raise SystemExit("Команда revise-plan работает только с plan-* задачами")
 
-    task_id = f"plan-{int(time.time())}"
+    # Дорабатываем тот же самый plan-id, чтобы оставаться в исходной ветке/PR.
+    task_id = args.plan_id
     repo_path = base.get("repo_path")
     if not repo_path:
         raise SystemExit(f"У {args.plan_id} не найден repo_path")
@@ -355,7 +356,7 @@ def cmd_revise_plan(args: argparse.Namespace) -> None:
 
     revised_task = (
         f"Доработка существующего архитектурного плана {args.plan_id}: {args.changes}\n\n"
-        f"Обязательно учти предыдущий план и PR этой ветки, сохрани результат как architecture-{task_id}.md"
+        f"Оставайся в текущей ветке/PR этого plan-id и обнови architecture-{task_id}.md"
     )
 
     prompt_path = create_prompt_file(
@@ -373,8 +374,11 @@ def cmd_revise_plan(args: argparse.Namespace) -> None:
     run_cmd([str(SCRIPTS_DIR / "spawn-agent.sh"), task_id, agent_type, repo, str(prompt_path), repo_path], cwd=ROOT)
     update_agent_metadata(
         task_id,
+        status="running",
+        review_status=None,
+        last_failure=None,
         task_description=f"Architecture planning revision of {args.plan_id}: {args.changes}",
-        acceptance_criteria=f"{plan_dir}/architecture-{task_id}.md создан и PR открыт",
+        acceptance_criteria=f"{plan_dir}/architecture-{task_id}.md обновлён и PR актуализирован",
         business_context=business_context,
         files_to_focus=files_to_focus,
         files_not_to_touch="-",
@@ -382,7 +386,7 @@ def cmd_revise_plan(args: argparse.Namespace) -> None:
         plan_path=plan_dir,
     )
     cmd_status_sync(argparse.Namespace(repo_path=repo_path))
-    print(f"Агент доработки плана {task_id} запущен на базе {args.plan_id}. Результат: {plan_dir}/architecture-{task_id}.md")
+    print(f"Доработка плана запущена в исходном PR для {task_id}. Файл: {plan_dir}/architecture-{task_id}.md")
 
 
 def cmd_status(_: argparse.Namespace) -> None:
