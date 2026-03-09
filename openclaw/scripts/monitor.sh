@@ -72,6 +72,7 @@ full_restart() {
     .agents[$t].last_failure = $r |
     .agents[$t].status = "running"
   '
+  "$ROOT_DIR/scripts/notify-telegram.sh" "⚠️ Агент $task_id: зафиксирован фейл ($reason). Запускаю retry #$next_retry/3."
 
   local prompt_file
   prompt_file="$(build_restart_prompt "$task_id" "$next_retry" "$reason")"
