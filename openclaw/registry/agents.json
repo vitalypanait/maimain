@@ -1,24 +1,3 @@
 {
-  "agents": {
-    "plan-1772970502": {
-      "branch": "agent/plan-1772970502",
-      "status": "cancelled",
-      "agent": "claude",
-      "repo": "openclaw",
-      "repo_path": "/Users/vitaliypanait/.openclaw/workspace/maimain/openclaw",
-      "worktree": "/Users/vitaliypanait/.openclaw/workspace/maimain/openclaw/agents/plan-1772970502",
-      "retries": 0,
-      "pr_number": null,
-      "review_status": null,
-      "created_at": "2026-03-08T11:50:05Z",
-      "last_failure": null,
-      "restart_prompt_addendum": null,
-      "notify_on_complete": true,
-      "task_description": "Architecture planning: Спроектировать телеграм бота, который будет аанализировать фото и писать текст по тематике фото для инстаграмма. Должно быть 3 текста: серъёзный, в шутливой форме и нормальный. Так же должен быть заголовок и \n текст для поста",
-      "acceptance_criteria": "docs/architecture-plan-1772970502.md создан и PR открыт",
-      "business_context": "",
-      "files_to_focus": ".",
-      "files_not_to_touch": "-"
-    }
-  }
+  "agents": {}
 }
