@@ -155,6 +155,7 @@ for task_id in "${TASK_IDS[@]-}"; do
     pending)
       ;;
     failed)
+      "$ROOT_DIR/scripts/notify-telegram.sh" "❌ Ревью не прошло: $task_id. Запускаю доработку (reason: review_failed)."
       if [[ "$session_alive" == "yes" ]]; then
         addendum="$(jq -r --arg t "$task_id" '.agents[$t].restart_prompt_addendum // ""' "$REGISTRY")"
         if [[ -n "$addendum" ]]; then
